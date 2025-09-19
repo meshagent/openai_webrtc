@@ -1,0 +1,15 @@
+{
+    "configurations": [
+        {
+            "cwd" : "example",
+            "name": "openai-webrtc example",
+            "request": "launch",
+            "type": "dart",
+            "program": "lib/main.dart",
+            "args": [
+                "-d",
+                "chrome",
+            ],
+        }
+    ]
+}
