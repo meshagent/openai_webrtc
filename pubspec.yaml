@@ -1,6 +1,7 @@
 name: openai_webrtc
 description: "webrtc support for openai_core and the OpenAI realtime api"
-
+homepage: https://github.com/meshagent/openai_webrtc
+documentation: https://github.com/meshagent/openai_webrtc
 version: 0.1.0
 
 environment:
