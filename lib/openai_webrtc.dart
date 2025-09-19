@@ -158,7 +158,7 @@ class _RealtimeSessionConnectionState extends State<RealtimeSessionConnection> {
     await pc.setLocalDescription(offer);
 
     final sdpResponse = await widget.openai.getRealtimeSDP(
-      model: widget.options.model!,
+      model: widget.options.model,
       sdp: offer.sdp!,
       ephemeralKey: ephemeralKey,
     );
