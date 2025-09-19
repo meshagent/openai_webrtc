@@ -257,17 +257,18 @@ packages:
   openai_core:
     dependency: "direct main"
     description:
-      path: "../../openai"
-      relative: true
-    source: path
-    version: "0.0.1"
+      name: openai_core
+      sha256: "6921e9694fc1fe07bc79285f0006acb19d22420c48b439875ab42c6c7d753036"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.1.0"
   openai_webrtc:
     dependency: "direct main"
     description:
       path: ".."
       relative: true
     source: path
-    version: "0.0.1"
+    version: "0.1.0"
   package_config:
     dependency: transitive
     description:
