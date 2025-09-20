@@ -29,7 +29,7 @@ Add the package to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  openai_webrtc: ^0.1.0
+  openai_webrtc: ^0.2.0
 ```
 
 Then fetch packages:
