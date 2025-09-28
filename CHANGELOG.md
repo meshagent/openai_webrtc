@@ -1,3 +1,7 @@
+# 0.5.0
+
+Update to 0.8.0 openai_core
+
 # 0.4.0
 
 Update to 0.7.0 openai_core
