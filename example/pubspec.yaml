@@ -44,7 +44,7 @@ dependencies:
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
   
-  openai_core: ^0.6.0
+  openai_core: ^0.7.0
     
   openai_webrtc:
       path: ../

@@ -2,7 +2,7 @@ name: openai_webrtc
 description: "webrtc support for openai_core and the OpenAI realtime api"
 homepage: https://github.com/meshagent/openai_webrtc
 documentation: https://github.com/meshagent/openai_webrtc
-version: 0.3.0
+version: 0.4.0
 
 environment:
   sdk: ^3.8.0
@@ -21,7 +21,7 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   flutter_webrtc: ^0.14.1
 
-  openai_core: ^0.6.0
+  openai_core: ^0.7.0
   
 platforms:
   android:

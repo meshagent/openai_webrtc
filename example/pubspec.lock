@@ -260,14 +260,14 @@ packages:
       path: "../../openai"
       relative: true
     source: path
-    version: "0.5.0"
+    version: "0.7.0"
   openai_webrtc:
     dependency: "direct main"
     description:
       path: ".."
       relative: true
     source: path
-    version: "0.2.0"
+    version: "0.3.0"
   package_config:
     dependency: transitive
     description:
