@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:openai_core/openai_core.dart';
 import 'package:openai_webrtc/openai_webrtc.dart';
@@ -133,10 +131,6 @@ class _MyHomePageState extends State<MyHomePage> {
                   initialTools: [GetTimeTool()],
                 ),
                 onReady: (controller) {
-                  controller.serverEvents.map((event) {
-                    print(jsonEncode(event.toJson()));
-                  }).drain();
-
                   controller.send(
                     RealtimeResponseCreateEvent(
                       response: RealtimeResponse(

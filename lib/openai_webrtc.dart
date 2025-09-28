@@ -7,41 +7,26 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 class RealtimeSessionOptions {
   RealtimeSessionOptions({
-    this.voice = SpeechVoice.alloy,
-    required this.model,
+    this.model,
+    this.outputModalities,
+    this.audio,
     this.instructions,
-    this.inputAudioFormat = AudioFormat.pcm16,
-    this.outputAudioFormat = AudioFormat.pcm16,
-    this.inputAudioTranscription,
-    this.inputAudioNoiseReduction,
-    this.turnDetection,
     this.initialTools,
-    this.temperature,
-    this.maxResponseOutputTokens,
-    this.speed,
-    this.tracing,
-    this.clientSecretAnchor,
-    this.clientSecretSeconds,
     this.toolChoice,
+    this.temperature,
+    this.maxOutputTokens,
+    this.tracing,
   });
 
-  final RealtimeModel model;
-  final List<Modality> modalities = const [Modality.audio, Modality.text];
+  final List<Modality>? outputModalities;
+  final RealtimeModel? model;
+  final RealtimeSessionAudio? audio;
   final String? instructions;
-  final SpeechVoice? voice;
-  final AudioFormat inputAudioFormat;
-  final AudioFormat outputAudioFormat;
-  final InputAudioTranscription? inputAudioTranscription;
-  final NoiseReduction? inputAudioNoiseReduction;
-  final TurnDetection? turnDetection;
   final List<RealtimeFunctionToolHandler>? initialTools;
   final ToolChoice? toolChoice;
-  final num? temperature;
-  final int? maxResponseOutputTokens;
-  final num? speed;
+  final double? temperature;
+  final dynamic maxOutputTokens;
   final Tracing? tracing;
-  final String? clientSecretAnchor;
-  final int? clientSecretSeconds;
 }
 
 class RealtimeSessionConnection extends StatefulWidget {
@@ -50,8 +35,12 @@ class RealtimeSessionConnection extends StatefulWidget {
     required this.options,
     required this.builder,
     required this.openai,
+    this.constraints = const {},
     this.onReady,
+    this.errorBuilder,
   });
+
+  final Map<String, dynamic> constraints;
 
   final OpenAIClient openai;
 
@@ -64,6 +53,8 @@ class RealtimeSessionConnection extends StatefulWidget {
     WebRTCSessionController? controller,
   )
   builder;
+
+  final Widget Function(BuildContext context, Object? error)? errorBuilder;
 
   @override
   State createState() => _RealtimeSessionConnectionState();
@@ -82,90 +73,94 @@ class _RealtimeSessionConnectionState extends State<RealtimeSessionConnection> {
   bool connected = false;
 
   Future<void> connect() async {
-    // Get an ephemeral key from your server - see server code below
-    final session = await widget.openai.createRealtimeSession(
-      model: widget.options.model,
-      voice: widget.options.voice,
-      instructions: widget.options.instructions,
-      inputAudioFormat: widget.options.inputAudioFormat,
-      outputAudioFormat: widget.options.outputAudioFormat,
-      inputAudioTranscription: widget.options.inputAudioTranscription,
-      inputAudioNoiseReduction: widget.options.inputAudioNoiseReduction,
-      turnDetection: widget.options.turnDetection,
-      temperature: widget.options.temperature,
-      maxResponseOutputTokens: widget.options.maxResponseOutputTokens,
-      speed: widget.options.speed,
-      tracing: widget.options.tracing,
-      clientSecretAnchor: widget.options.clientSecretAnchor,
-      clientSecretSeconds: widget.options.clientSecretSeconds,
-      toolChoice: widget.options.toolChoice,
-      tools: [
-        ...(widget.options.initialTools?.map((t) => t.metadata) ?? const []),
-      ],
-    );
-    final ephemeralKey = session.clientSecret!.value;
+    try {
+      // Create a peer connection
+      final pc = await createPeerConnection({}, widget.constraints);
 
-    // Create a peer connection
-    final pc = await createPeerConnection({});
+      pc.onTrack = (evt) {
+        renderer.srcObject = evt.streams[0];
+      };
 
-    WebRTCSessionController.create(
-      connection: pc,
-      initialTools: widget.options.initialTools,
-    ).then((controller) {
+      await pc.addTransceiver(
+        kind: RTCRtpMediaType.RTCRtpMediaTypeAudio,
+        init: RTCRtpTransceiverInit(direction: TransceiverDirection.SendRecv),
+      );
+
+      // Set up to play remote audio from the model
+      // Add local audio track for microphone input in the browser
+      final ms = await navigator.mediaDevices.getUserMedia({"audio": true});
+
+      stream = ms;
+
+      final tracks = ms.getTracks();
+      await pc.addTrack(tracks[0], ms);
+
+      // Set up data channel for sending and receiving events
+      final dataChannel = await pc.createDataChannel(
+        "oai-events",
+        RTCDataChannelInit(),
+      );
+
+      Completer<bool> c = Completer();
+
+      dataChannel.onDataChannelState = (state) {
+        if (state.name == "RTCDataChannelOpen") {
+          c.complete(true);
+        }
+      };
+
+      // Start the session using the Session Description Protocol (SDP)
+      final offer = await await pc.createOffer(widget.constraints);
+      await pc.setLocalDescription(offer);
+
+      final session = await widget.openai.createCall(
+        sdp: offer.sdp!,
+        model: widget.options.model,
+        outputModalities: widget.options.outputModalities,
+        audio: widget.options.audio,
+        instructions: widget.options.instructions,
+        toolChoice: widget.options.toolChoice,
+        temperature: widget.options.temperature,
+        maxOutputTokens: widget.options.maxOutputTokens,
+        tracing: widget.options.tracing,
+        tools: [
+          ...(widget.options.initialTools?.map((t) => t.metadata) ?? const []),
+        ],
+      );
+
+      final answer = RTCSessionDescription(session.sdpAnswer, "answer");
+      await pc.setRemoteDescription(answer);
+
+      final controller = await WebRTCSessionController.create(
+        connection: pc,
+        initialTools: widget.options.initialTools,
+        dataChannel: dataChannel,
+      );
+
+      await c.future;
+
       _controller = controller;
       final onReady = widget.onReady;
 
       if (onReady != null) {
         onReady(_controller!);
-
-        if (context.mounted) {
-          setState(() {
-            connected = true;
-          });
-        }
       }
-    });
 
-    pc.onTrack = (evt) {
-      print("on track ${evt.track}");
-
-      renderer.srcObject = evt.streams[0];
-    };
-
-    pc.onAddStream = (stream) {
-      print("added stream");
-    };
-    pc.onAddTrack = (stream, track) {
-      print("Added track");
-    };
-
-    await pc.addTransceiver(
-      kind: RTCRtpMediaType.RTCRtpMediaTypeAudio,
-      init: RTCRtpTransceiverInit(direction: TransceiverDirection.SendRecv),
-    );
-
-    // Set up to play remote audio from the model
-    // Add local audio track for microphone input in the browser
-    final ms = await navigator.mediaDevices.getUserMedia({"audio": true});
-
-    stream = ms;
-
-    final tracks = ms.getTracks();
-    await pc.addTrack(tracks[0], ms);
-
-    // Start the session using the Session Description Protocol (SDP)
-    final offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-
-    final sdpResponse = await widget.openai.getRealtimeSDP(
-      model: widget.options.model,
-      sdp: offer.sdp!,
-      ephemeralKey: ephemeralKey,
-    );
-
-    final answer = RTCSessionDescription(sdpResponse, "answer");
-    await pc.setRemoteDescription(answer);
+      if (context.mounted) {
+        setState(() {
+          connected = true;
+        });
+      }
+    } on Exception catch (err) {
+      if (context.mounted) {
+        setState(() {
+          error = err;
+        });
+      }
+    }
   }
+
+  Exception? error;
 
   MediaStream? stream;
 
@@ -192,52 +187,45 @@ class _RealtimeSessionConnectionState extends State<RealtimeSessionConnection> {
       overlayChildBuilder: (context) => (connected)
           ? SizedBox(width: 0, height: 0, child: RTCVideoView(renderer))
           : SizedBox(width: 0, height: 0),
-      child: widget.builder(context, _controller),
+      child: error != null
+          ? (widget.errorBuilder != null
+                ? widget.errorBuilder!(context, error)
+                : Text("$error"))
+          : widget.builder(context, _controller),
     );
   }
 }
 
 class WebRTCSessionController extends RealtimeSessionController {
-  WebRTCSessionController._({required this.connection, super.initialTools});
+  WebRTCSessionController._({
+    required this.connection,
+    super.initialTools,
+    required this.dataChannel,
+  });
 
-  Future<void> _init() async {
-    // Set up data channel for sending and receiving events
-    dataChannel = await connection.createDataChannel(
-      "oai-events",
-      RTCDataChannelInit(),
-    );
-
-    Completer<bool> c = Completer();
-
-    dataChannel.onDataChannelState = (state) {
-      if (state.name == "RTCDataChannelOpen") {
-        c.complete(true);
-      }
-    };
-
-    await c.future;
-
-    dataChannel.onMessage = (message) {
-      serverEventsController.add(
-        RealtimeEvent.fromJson(jsonDecode(message.text)),
-      );
-    };
-  }
+  final RTCDataChannel dataChannel;
 
   static Future<WebRTCSessionController> create({
     required RTCPeerConnection connection,
+    required RTCDataChannel dataChannel,
     List<RealtimeFunctionToolHandler>? initialTools,
   }) async {
     final c = WebRTCSessionController._(
       connection: connection,
       initialTools: initialTools,
+      dataChannel: dataChannel,
     );
-    await c._init();
+
+    dataChannel.onMessage = (message) {
+      c.serverEventsController.add(
+        RealtimeEvent.fromJson(jsonDecode(message.text)),
+      );
+    };
+
     return c;
   }
 
   final RTCPeerConnection connection;
-  late final RTCDataChannel dataChannel;
 
   @override
   Future<void> send(RealtimeEvent event) async {
